@@ -118,12 +118,28 @@ local function insert_panes(root, panes)
 		return root
 	end
 
+	-- A pane that is both strictly-right and strictly-below of root (i.e.
+	-- positioned diagonally past the bottom-right corner) satisfies both
+	-- predicates. If we push the same Lua reference into both buckets, the
+	-- right-branch recursion will set `pane.pane = nil` at the end of its
+	-- insert_panes pass, and the bottom-branch recursion will then crash
+	-- when it reaches that same object at `root.pane:get_domain_name()`.
+	-- Shallow-clone the PaneInformation for the second bucket so each
+	-- branch owns an independent copy of the transient `.pane` slot.
 	local right, bottom = {}, {}
 	for _, pane in ipairs(panes) do
-		if is_right(root, pane) then
+		local in_right = is_right(root, pane)
+		local in_bottom = is_bottom(root, pane)
+		if in_right and in_bottom then
+			local clone = {}
+			for k, v in pairs(pane) do
+				clone[k] = v
+			end
 			table.insert(right, pane)
-		end
-		if is_bottom(root, pane) then
+			table.insert(bottom, clone)
+		elseif in_right then
+			table.insert(right, pane)
+		elseif in_bottom then
 			table.insert(bottom, pane)
 		end
 	end
